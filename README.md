@@ -4,7 +4,7 @@
 > 외부 네트워크 통신 0 Byte, 데이터 유출 걱정 없는 보안 한글(HWPX) 문서 편집 & 로컬 LLM (`gemma4:e2b`) 통합 에디터
 
 ---
-
+![alt text](image.png)
 ## 🛡️ 프로젝트 정체성 (Core Identity)
 
 1. **클라우드 API 통신 0%**: OpenAI, Anthropic, Google Cloud 등 외부 AI API를 일절 사용하지 않고, 사용자의 PC 내부 루프백(`http://localhost:11434`)의 Ollama 로컬 LLM(`gemma4:e2b`)만 사용합니다.
