@@ -1,0 +1,19 @@
+[package]
+name = "hwpai"
+version = "0.8.4"
+description = "100% Local HWPX AI Editor"
+authors = ["edwardkim"]
+edition = "2021"
+
+[lib]
+name = "hwpai_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.0.5", features = [] }
+
+[dependencies]
+tauri = { version = "2.1.1", features = [] }
+tauri-plugin-opener = "2.0.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
