@@ -347,6 +347,68 @@
   margin-top: auto;
 }
 
+/* 선택 영역 배너 — 드래그로 고른 범위를 질의 대상으로 쓴다는 표시 */
+.ai-selection-banner {
+  border: 1px solid #93c5fd;
+  border-left: 3px solid #2563eb;
+  background: #eff6ff;
+  border-radius: 6px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ai-selection-banner.hidden {
+  display: none;
+}
+
+.ai-selection-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ai-selection-head .ai-checkbox-label {
+  color: #1d4ed8;
+}
+
+.ai-selection-count {
+  font-size: 11px;
+  color: #2563eb;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.ai-selection-clear {
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 2px;
+  cursor: pointer;
+}
+
+.ai-selection-clear:hover {
+  color: #dc2626;
+}
+
+.ai-selection-preview {
+  font-size: 11px;
+  line-height: 1.5;
+  color: #475569;
+  max-height: 48px;
+  overflow: hidden;
+}
+
+.ai-msg-scope-tag {
+  display: block;
+  margin-top: 4px;
+  font-size: 10px;
+  opacity: 0.85;
+}
+
 #ai-prompt-input {
   width: 100%;
   height: 70px;
@@ -694,6 +756,24 @@
 
 :root[data-theme-effective="dark"] .ai-checkbox-label {
   color: #94a3b8;
+}
+
+:root[data-theme-effective="dark"] .ai-selection-banner {
+  background: #16233a;
+  border-color: #2f4a76;
+  border-left-color: #60a5fa;
+}
+
+:root[data-theme-effective="dark"] .ai-selection-head .ai-checkbox-label {
+  color: #93c5fd;
+}
+
+:root[data-theme-effective="dark"] .ai-selection-count {
+  color: #60a5fa;
+}
+
+:root[data-theme-effective="dark"] .ai-selection-preview {
+  color: #a9b4c4;
 }
 
 :root[data-theme-effective="dark"] .ai-btn-secondary {

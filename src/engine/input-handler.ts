@@ -10,6 +10,7 @@ import { DeleteSelectionCommand, ApplyCharFormatCommand, ApplyParaFormatCommand,
 import type { OperationDescriptor, ParaFormatTarget, RefreshPolicy, TextMutationEffects, EditCommand, EditContext, FormValueTarget } from './command';
 import { selectCellIndicesInRange, paraFormatTargetsForCellBlock, withCellPathTarget } from './cell-block-format';
 import type { SelectedCellBlock } from './cell-block-format';
+import { bodyTextSlices, cellTextSlices, joinSelectionLines } from '@/core/selection-text';
 import { VirtualScroll } from '@/view/virtual-scroll';
 import { ViewportManager } from '@/view/viewport-manager';
 import type {
@@ -5041,6 +5042,112 @@ export class InputHandler {
   /** 현재 선택 범위를 반환한다 (커맨드 시스템용) */
   getSelection(): { start: DocumentPosition; end: DocumentPosition } | null {
     return this.cursor.getSelectionOrdered();
+  }
+
+  /**
+   * 현재 선택 영역의 평문 텍스트를 반환한다. 선택이 없으면 빈 문자열.
+   *
+   * AI Assister 가 "문서 전체" 대신 선택 부분만 맥락으로 쓰기 위한 읽기 전용 경로다.
+   * onCopy 가 쓰는 wasm.copySelection + getClipboardText 는 WASM 내부 클립보드를 덮어써
+   * 사용자가 복사해 둔 내용을 날리므로, 같은 범위를 getTextRange 로 다시 읽는다.
+   */
+  getSelectedText(maxChars: number = 4000): string {
+    try {
+      const block = this.getSelectedCellBlock();
+      if (block) return joinSelectionLines(this.readCellBlockLines(block), maxChars);
+
+      const sel = this.getNonEmptySelection();
+      if (!sel) return '';
+
+      const { start, end } = sel;
+      const lines = start.parentParaIndex !== undefined
+        ? this.readSelectedCellLines(start, end)
+        : this.readSelectedBodyLines(start, end);
+
+      return joinSelectionLines(lines, maxChars);
+    } catch (e) {
+      console.warn('[InputHandler] getSelectedText 실패:', e);
+      return '';
+    }
+  }
+
+  /** 본문(표 밖) 선택 범위의 문단 텍스트를 읽는다 */
+  private readSelectedBodyLines(start: DocumentPosition, end: DocumentPosition): string[] {
+    const slices = bodyTextSlices(
+      start,
+      end,
+      (sec) => this.wasm.getParagraphCount(sec),
+      (sec, para) => this.wasm.getParagraphLength(sec, para),
+    );
+    return slices
+      .map((s) => this.wasm.getTextRange(s.sectionIndex, s.paragraphIndex, s.from, s.to - s.from) || '')
+      .filter((t) => t.length > 0);
+  }
+
+  /**
+   * 한 셀 안에서의 선택 범위 텍스트를 읽는다.
+   *
+   * 셀을 넘나드는 텍스트 선택은 커서 모델상 만들어지지 않는다(셀 경계를 넘으면 셀 블록 선택으로
+   * 전환된다). 시작·끝이 다른 셀이면 안전하게 시작 셀 기준만 읽는다.
+   */
+  private readSelectedCellLines(start: DocumentPosition, end: DocumentPosition): string[] {
+    const sec = start.sectionIndex;
+    const ppi = start.parentParaIndex!;
+    const path = start.cellPath;
+    const useCellPath = (path?.length ?? 0) > 0;
+
+    const startPara = cellParaIndexOf(start);
+    const endPara = end.parentParaIndex !== undefined ? cellParaIndexOf(end) : startPara;
+    const endOffset = end.parentParaIndex !== undefined ? end.charOffset : start.charOffset;
+
+    if (useCellPath) {
+      const lastCell = path![path!.length - 1].cellIndex;
+      const pathJsonAt = (cp: number) => JSON.stringify(withCellPathTarget(path!, lastCell, cp));
+      const slices = cellTextSlices(startPara, start.charOffset, endPara, endOffset,
+        (cp) => this.wasm.getCellParagraphLengthByPath(sec, ppi, pathJsonAt(cp)));
+      return slices
+        .map((s) => this.wasm.getTextInCellByPath(sec, ppi, pathJsonAt(s.cellParaIndex), s.from, s.to - s.from) || '')
+        .filter((t) => t.length > 0);
+    }
+
+    const ci = start.controlIndex!;
+    const cellIdx = start.cellIndex!;
+    const slices = cellTextSlices(startPara, start.charOffset, endPara, endOffset,
+      (cp) => this.wasm.getCellParagraphLength(sec, ppi, ci, cellIdx, cp));
+    return slices
+      .map((s) => this.wasm.getTextInCell(sec, ppi, ci, cellIdx, s.cellParaIndex, s.from, s.to - s.from) || '')
+      .filter((t) => t.length > 0);
+  }
+
+  /** F5 셀 블록 선택 — 선택된 셀들의 모든 문단 텍스트를 읽는다 */
+  private readCellBlockLines(block: SelectedCellBlock): string[] {
+    const lines: string[] = [];
+
+    for (const cellIdx of block.cellIndices) {
+      if (block.cellPath) {
+        const path = block.cellPath;
+        const paraCount = this.wasm.getCellParagraphCountByPath(
+          block.sec, block.ppi, JSON.stringify(withCellPathTarget(path, cellIdx)));
+        for (let cp = 0; cp < paraCount; cp++) {
+          const pathJson = JSON.stringify(withCellPathTarget(path, cellIdx, cp));
+          const len = this.wasm.getCellParagraphLengthByPath(block.sec, block.ppi, pathJson);
+          if (len <= 0) continue;
+          const text = this.wasm.getTextInCellByPath(block.sec, block.ppi, pathJson, 0, len);
+          if (text && text.trim()) lines.push(text);
+        }
+        continue;
+      }
+
+      const paraCount = this.wasm.getCellParagraphCount(block.sec, block.ppi, block.ci, cellIdx);
+      for (let cp = 0; cp < paraCount; cp++) {
+        const len = this.wasm.getCellParagraphLength(block.sec, block.ppi, block.ci, cellIdx, cp);
+        if (len <= 0) continue;
+        const text = this.wasm.getTextInCell(block.sec, block.ppi, block.ci, cellIdx, cp, 0, len);
+        if (text && text.trim()) lines.push(text);
+      }
+    }
+
+    return lines;
   }
 
   /** 지정된 선택 범위에 글자 서식을 적용한다 (커맨드 시스템용) */

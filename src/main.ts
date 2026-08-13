@@ -1573,7 +1573,8 @@ function getHwpCtrl(): HwpCtrl | null {
 
 function initAiAssister() {
   const ollamaClient = new OllamaClient('http://localhost:11434', 'gemma4:e2b');
-  aiPanelInstance = new AiAssisterPanel(ollamaClient, getHwpCtrl);
+  const getSelectedEditorText = () => inputHandler?.getSelectedText() ?? '';
+  aiPanelInstance = new AiAssisterPanel(ollamaClient, getHwpCtrl, getSelectedEditorText);
   const mainWrap = document.getElementById('main-content-wrap');
   if (mainWrap) {
     const resizer = document.createElement('div');
@@ -1610,13 +1611,44 @@ function initAiAssister() {
     documentState.markDirty('ai-insert');
   });
 
+  /**
+   * 에디터 선택 영역을 AI Assister 로 전달한다.
+   *
+   * 본문은 캔버스로 그려지므로 window.getSelection() 으로는 잡히지 않는다. 캔버스 선택은
+   * InputHandler 의 커서 모델에만 있으므로 그쪽에서 읽고, DOM 텍스트(머리말 입력 등)는
+   * 폴백으로 남긴다.
+   */
+  const readEditorSelection = (): string => {
+    const editorText = getSelectedEditorText().trim();
+    if (editorText) return editorText;
+    return (window.getSelection()?.toString() ?? '').trim();
+  };
+
+  const syncSelectionToAi = () => {
+    aiPanelInstance?.setSelectionText(readEditorSelection());
+  };
+
   document.addEventListener('mouseup', (e) => {
-    const sel = window.getSelection();
-    if (sel && sel.toString().trim().length > 1) {
-      const target = e.target as HTMLElement;
-      if (target.closest('#scroll-container')) {
-        inlineToolbar.showAt(e.clientX, e.clientY, sel.toString().trim());
-      }
+    const target = e.target as HTMLElement;
+    if (!target.closest('#scroll-container')) return;
+
+    // 선택이 풀린 단순 클릭도 반영해야 다음 질의가 문서 전체로 되돌아간다
+    const selectedText = readEditorSelection();
+    aiPanelInstance?.setSelectionText(selectedText);
+
+    if (selectedText.length > 1) {
+      inlineToolbar.showAt(e.clientX, e.clientY, selectedText);
+    }
+  });
+
+  // Shift+방향키 / Ctrl+A / F5 블록 선택 등 키보드 선택도 반영
+  document.addEventListener('keyup', (e) => {
+    const target = e.target as HTMLElement | null;
+    if (target?.closest('#ai-assister-panel')) return;
+    if (e.key === 'Shift' || e.key === 'Control' || e.key.startsWith('Arrow') ||
+        e.key === 'Home' || e.key === 'End' || e.key === 'PageUp' || e.key === 'PageDown' ||
+        e.key === 'a' || e.key === 'A' || e.key === 'F5' || e.key === 'F3') {
+      syncSelectionToAi();
     }
   });
 
