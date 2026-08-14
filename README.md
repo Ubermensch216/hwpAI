@@ -14,7 +14,124 @@
 
 ---
 
-## 🚀 실행 명령어 목록
+## ✅ 시작하기 전에 (요구사항)
+
+| 항목 | 필요 여부 | 비고 |
+|---|---|---|
+| **Node.js 20 이상** (권장 22+) | 필수 | [nodejs.org](https://nodejs.org)에서 설치 |
+| **Ollama** | 선택 | AI 조수 기능을 쓸 때만 필요. 없어도 문서 편집 기능은 정상 작동 |
+| **Rust + Cargo** | 선택 | 데스크톱 실행 파일(.exe/.msi)을 직접 빌드할 때만 필요 |
+
+---
+
+## 🚀 빠른 시작 (Quick Start)
+
+```bash
+# 1. 저장소 받기
+git clone https://gitlab.aigov.go.kr/Ubermensch/hwpai.git
+cd hwpai
+
+# 2. 의존성 설치
+npm install
+
+# 3. 개발 서버 실행
+npm run dev
+```
+
+실행 후 브라우저에서 **http://localhost:7700** 으로 접속하면 바로 에디터를 사용할 수 있습니다.
+
+---
+
+## 🖥️ 상황별 실행 방법
+
+### 1) 개발 모드 — 코드를 수정하며 바로 확인
+```bash
+npm run dev
+```
+파일을 저장하면 브라우저가 즉시 갱신됩니다(HMR). 평소 개발 작업에 사용하세요.
+
+### 2) 정적 빌드 + 로컬 서버 — 실사용/배포용
+```bash
+npm run build       # dist/ 폴더에 정적 파일 생성
+npm run standalone   # node server.mjs — 로컬 웹서버 실행
+```
+브라우저에서 **http://127.0.0.1:7700** 으로 접속합니다. 7700번 포트가 사용 중이면 7701, 7702… 순으로 자동으로 빈 포트를 찾고, 실제로 열린 포트 번호는 `server-port.txt` 파일에 기록됩니다.
+
+### 3) 더블클릭 한 번으로 실행 — 가장 쉬운 방법 (일반 사용자 추천)
+탐색기에서 아래 파일을 더블클릭하기만 하면 됩니다.
+
+- **`hwpai.bat`** — 실행 상태를 보여주는 콘솔 창이 함께 뜸
+- **`hwpai.vbs`** — 콘솔 창 없이 조용히 실행됨
+
+동작 순서는 자동으로 처리됩니다: `dist/index.html`이 없으면 빌드 → 로컬 서버 실행 → 설치된 Edge 또는 Chrome을 "앱 모드"로 자동으로 띄워줍니다(둘 다 없으면 기본 브라우저로 열림).
+
+### 4) 데스크톱 네이티브 앱 (Tauri, .exe/.msi)
+Rust/Cargo가 설치되어 있어야 합니다.
+
+```bash
+# 개발 중 데스크톱 창으로 바로 실행
+npm run dev:tauri
+
+# 배포용 설치 파일(.exe / .msi) 빌드
+npm run build:tauri
+```
+빌드가 끝나면 `src-tauri/target/release/bundle/` 아래에 설치 파일이 생성됩니다. 실행 파일 이름은 `hwpai.exe`, 제품명은 `hwp+AI Editor`입니다.
+
+---
+
+## 🤖 로컬 AI(Ollama) 조수 사용법
+
+AI 조수 기능을 쓰려면 아래 절차로 Ollama를 준비하세요. (설치하지 않아도 문서 편집·저장 등 기본 기능은 그대로 사용 가능합니다.)
+
+1. [ollama.com](https://ollama.com)에서 Ollama를 설치합니다.
+2. 터미널에서 모델을 내려받습니다.
+   ```bash
+   ollama pull gemma4:e2b
+   ```
+3. Ollama가 실행되면 `http://localhost:11434`(PC 내부 루프백)로 자동 대기 상태가 되고, 에디터의 AI 조수 패널이 이를 자동으로 인식해 연결합니다. 외부 네트워크로는 어떤 데이터도 나가지 않습니다.
+
+---
+
+## 🧪 테스트 실행
+
+```bash
+npm test   # 유닛 테스트
+npm run e2e   # 대표 e2e 시나리오 (그 외 개별 e2e 스크립트는 package.json의 "e2e:*" 목록 참고)
+```
+
+> **참고**: 이 저장소는 상위 모노레포의 일부만 체크아웃된 상태라, 폰트/코어 엔진 fixture 파일이 없어 유닛 테스트 중 9개는 항상 실패합니다(정상 상태). 현재 기준선은 **pass 823 / fail 9**이며, 실패 목록이 이와 다르면 그때 원인을 조사하면 됩니다.
+
+---
+
+## 🛠️ 문제 해결 (Troubleshooting)
+
+| 증상 | 해결 방법 |
+|---|---|
+| 포트가 이미 사용 중 | 서버가 자동으로 다음 포트를 찾습니다. 실제 포트는 `server-port.txt`에서 확인하세요 |
+| `hwpai.bat` 실행 시 "dist/index.html 없음" 안내 후 멈춤처럼 보임 | 최초 실행 시 자동으로 `npm run build`가 진행 중인 것이니 잠시 기다려 주세요 |
+| Edge/Chrome이 자동으로 안 열림 | 두 브라우저가 모두 없는 경우 기본 브라우저의 새 탭으로 열립니다. 안내된 주소를 직접 열어도 됩니다 |
+| AI 조수가 응답하지 않음 | Ollama가 설치·실행 중인지, `ollama pull gemma4:e2b`로 모델을 받았는지 확인하세요 |
+
+---
+
+## 📁 주요 폴더 구조
+
+```
+hwpAI/
+├─ src/            # 프론트엔드(에디터) 소스
+├─ src-tauri/       # Tauri 데스크톱 앱 설정 및 아이콘
+├─ public/          # 정적 리소스(아이콘, 파비콘 등)
+├─ dist/            # 빌드 결과물 (git 미포함, npm run build로 생성)
+├─ e2e/             # e2e 테스트 스크립트
+├─ tests/           # 유닛 테스트
+├─ server.mjs        # standalone 로컬 서버
+├─ hwpai.bat / hwpai.vbs   # 더블클릭 실행 런처
+└─ package.json
+```
+
+---
+
+## 🚀 실행 명령어 전체 목록
 
 ```bash
 # 개발 서버 (포트 7700)
@@ -23,13 +140,16 @@ npm run dev
 # 프로덕션 빌드 (dist/)
 npm run build
 
+# 빌드 결과물을 로컬 서버로 실행
+npm run standalone
+
 # Tauri 데스크톱 개발 실행
 npm run dev:tauri
 
 # Tauri Windows 실행 파일 (hwpai.exe / .msi) 빌드
 npm run build:tauri
-```
 
-Windows에서는 `hwpai.bat`(콘솔 표시) 또는 `hwpai.vbs`(콘솔 숨김)를 더블클릭하면
-로컬 서버를 띄우고 브라우저 앱 모드로 바로 실행됩니다.
-Tauri 번들의 실행 파일 이름은 `hwpai.exe`, 제품명은 `hwp+AI Editor`입니다.
+# 유닛 테스트 / e2e 테스트
+npm test
+npm run e2e
+```
