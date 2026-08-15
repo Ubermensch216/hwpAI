@@ -38,8 +38,27 @@ function findCompiledAsset(ext) {
   return null;
 }
 
+// 서비스 워커 스크립트는 HTTP 캐시에 남으면 갱신이 밀린다. 항상 새로 받게 한다.
+const swScripts = new Set(['/sw.js', '/dev-sw.js', '/registerSW.js']);
+
+// 남아 있는 dev 서비스 워커 등록(`/dev-sw.js?dev-sw`)을 정리하는 kill switch.
+// 빌드된 dist 에 없으면(구버전 dist) public 원본으로 대체해서라도 반드시 응답한다.
+function resolveDevSwPath() {
+  const built = path.join(distDir, 'dev-sw.js');
+  if (fs.existsSync(built)) return built;
+  const source = path.join(__dirname, 'public', 'dev-sw.js');
+  if (fs.existsSync(source)) return source;
+  return null;
+}
+
 const server = http.createServer((req, res) => {
   let reqUrl = (req.url || '/').split('?')[0];
+
+  // 런처가 "이미 떠 있는 서버인지" 확인하는 용도 (중복 실행/포트 밀림 방지)
+  if (reqUrl === '/__hwpai/ping') {
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    return res.end(JSON.stringify({ app: 'hwpai', pid: process.pid }));
+  }
 
   // 구버전/직접 레퍼런스 호환성 리다이렉트 및 매핑
   let filePath = path.join(distDir, reqUrl === '/' ? 'index.html' : reqUrl);
@@ -48,6 +67,13 @@ const server = http.createServer((req, res) => {
   if (!filePath.startsWith(distDir)) {
     res.writeHead(403);
     return res.end('403 Forbidden');
+  }
+
+  // 트래버설 검사 이후에 매핑한다 — kill switch 원본은 public/ 에 있어 distDir 밖이지만
+  // 요청 경로가 아니라 서버가 고른 고정 경로이므로 안전하다.
+  if (reqUrl === '/dev-sw.js') {
+    const devSwPath = resolveDevSwPath();
+    if (devSwPath) filePath = devSwPath;
   }
 
   const ext = path.extname(reqUrl).toLowerCase();
@@ -81,13 +107,35 @@ const server = http.createServer((req, res) => {
     } else {
       res.writeHead(200, {
         'Content-Type': contentType,
-        'Cache-Control': 'no-cache',
+        'Cache-Control': swScripts.has(reqUrl) ? 'no-store' : 'no-cache',
         'Access-Control-Allow-Origin': '*',
       });
       res.end(content);
     }
   });
 });
+
+// 이미 그 포트에 떠 있는 것이 우리 서버인지 확인한다.
+function probeExistingInstance(port) {
+  return new Promise((resolve) => {
+    const req = http.get(
+      { host: HOST, port, path: '/__hwpai/ping', timeout: 1000 },
+      (res) => {
+        let body = '';
+        res.on('data', (chunk) => { body += chunk; });
+        res.on('end', () => {
+          try {
+            resolve(JSON.parse(body).app === 'hwpai');
+          } catch {
+            resolve(false);
+          }
+        });
+      },
+    );
+    req.on('timeout', () => { req.destroy(); resolve(false); });
+    req.on('error', () => resolve(false));
+  });
+}
 
 function listenOnAvailablePort(startPort) {
   server.listen(startPort, HOST, () => {
@@ -96,13 +144,24 @@ function listenOnAvailablePort(startPort) {
     console.log(`[hwp AI Editor Server] http://${HOST}:${port}`);
   });
 
-  server.on('error', (err) => {
-    if (err.code === 'EADDRINUSE') {
-      console.log(`[hwp AI Editor Server] Port ${startPort} busy, trying ${startPort + 1}...`);
-      listenOnAvailablePort(startPort + 1);
-    } else {
+  // once — 재시도마다 핸들러가 쌓이면 EADDRINUSE 한 번에 여러 번 재귀한다.
+  server.once('error', async (err) => {
+    if (err.code !== 'EADDRINUSE') {
       console.error('[hwp AI Editor Server] Error:', err);
+      return;
     }
+
+    // 이전 실행에서 남은 우리 서버가 그대로 살아 있으면 새로 띄우지 않고 재사용한다.
+    // 매번 새 포트로 밀리면 설치된 PWA(파일 연결 실행)가 기억하는 주소와 어긋나
+    // 엉뚱한/죽은 포트를 열게 된다.
+    if (await probeExistingInstance(startPort)) {
+      fs.writeFileSync(path.join(__dirname, 'server-port.txt'), String(startPort));
+      console.log(`[hwp AI Editor Server] 이미 실행 중인 서버 재사용 — http://${HOST}:${startPort}`);
+      process.exit(0);
+    }
+
+    console.log(`[hwp AI Editor Server] Port ${startPort} busy, trying ${startPort + 1}...`);
+    listenOnAvailablePort(startPort + 1);
   });
 }
 

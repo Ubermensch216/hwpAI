@@ -135,6 +135,9 @@ export default defineConfig({
         // WASM (~12 MB) is kept out of precache to avoid blocking SW installation;
         // CacheFirst at runtime still gives offline access after the first load.
         globPatterns: ['**/*.{js,css,html,png,svg,ico,woff,woff2,ttf,otf}'],
+        // public/dev-sw.js 는 남아 있는 dev 워커를 제거하는 kill switch 이므로
+        // 프로덕션 워커가 precache 할 대상이 아니다.
+        globIgnores: ['dev-sw.js'],
         maximumFileSizeToCacheInBytes: 20 * 1024 * 1024,
         runtimeCaching: [
           {
@@ -147,10 +150,13 @@ export default defineConfig({
           },
         ],
       },
+      // dev 서비스 워커는 절대 켜지 않는다.
+      // dev 서버와 standalone 서버(server.mjs)가 같은 origin(127.0.0.1:7700)을 쓰기 때문에,
+      // dev 워커가 한 번 등록되면 이후 standalone/PWA 실행 시에도 그 워커가 "/" 요청을
+      // 가로채 dev 시절 소스 index.html(= CSS <link> 없음, /src/main.ts 참조)을 돌려주고
+      // 화면이 전부 깨진 채로 뜬다. 남아 있는 등록은 public/dev-sw.js 가 정리한다.
       devOptions: {
-        enabled: true,
-        type: 'module',
-        navigateFallback: 'index.html',
+        enabled: false,
       },
     }),
   ],

@@ -21,7 +21,7 @@ set COUNT=0
 timeout /t 1 /nobreak >nul
 set /a COUNT+=1
 if exist server-port.txt goto GOT_PORT
-if %COUNT% lss 5 goto WAIT_PORT
+if %COUNT% lss 10 goto WAIT_PORT
 
 :GOT_PORT
 set PORT=7700

@@ -26,3 +26,45 @@
   const themeColorMeta = document.querySelector('meta[name="theme-color"]');
   if (themeColorMeta) themeColorMeta.setAttribute('content', effective === 'dark' ? '#2b3037' : '#f5f5f5');
 })();
+
+// 잔존 dev 서비스 워커 자동 복구.
+//
+// vite dev 서버와 standalone 서버(server.mjs)는 같은 origin(127.0.0.1:7700)을 쓴다.
+// 예전 빌드에서는 `npm run dev` 한 번만으로 이 origin 에 dev 서비스 워커가 등록됐고,
+// 그 워커가 "/" 요청을 dev 시절 캐시(CSS <link> 가 없고 /src/main.ts 를 참조하는 소스
+// index.html)로 응답해서 hwpai.vbs/.bat 실행이나 PWA 파일 연결 실행 시 화면이 통째로
+// 깨진 채 떴다. 그 상태에서는 번들 JS 가 아예 로드되지 않으므로(404) 앱 코드로는 복구할
+// 수 없고, 캐시를 타지 않고 항상 서버에서 받아오는 이 파일만이 복구를 수행할 수 있다.
+(() => {
+  if (!('serviceWorker' in navigator)) return;
+  // 만에 하나 복구가 실패해도 새로고침 루프에 빠지지 않게 한 번만 시도한다.
+  const ONCE_KEY = 'rhwp-dev-sw-cleanup';
+  try {
+    if (sessionStorage.getItem(ONCE_KEY)) return;
+  } catch {
+    return;
+  }
+
+  navigator.serviceWorker.getRegistrations().then(async (registrations) => {
+    const isDevWorker = (reg) =>
+      [reg.active, reg.waiting, reg.installing].some(
+        (worker) => worker && worker.scriptURL.includes('/dev-sw.js'),
+      );
+    const stale = registrations.filter(isDevWorker);
+    if (stale.length === 0) return;
+
+    try {
+      sessionStorage.setItem(ONCE_KEY, '1');
+    } catch {
+      /* 세션 저장 실패 시에도 복구는 진행한다 */
+    }
+
+    await Promise.all(stale.map((reg) => reg.unregister()));
+    const keys = await caches.keys();
+    await Promise.all(keys.map((key) => caches.delete(key)));
+    console.warn('[PWA] 오래된 dev 서비스 워커를 제거했습니다. 페이지를 다시 불러옵니다.');
+    location.reload();
+  }).catch(() => {
+    /* 복구 실패 시 조용히 무시 — 최소한 화면 동작을 막지는 않는다 */
+  });
+})();
