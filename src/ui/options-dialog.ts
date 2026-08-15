@@ -24,6 +24,11 @@ export class OptionsDialog extends ModalDialog {
   private idleSaveEnabledCheck!: HTMLInputElement;
   private idleDelayInput!: HTMLInputElement;
   private pdfPrintGuidanceCheck!: HTMLInputElement;
+  private ollamaUrlInput!: HTMLInputElement;
+  private ollamaModelInput!: HTMLInputElement;
+  private contextMaxCharsInput!: HTMLInputElement;
+  private temperatureInput!: HTMLInputElement;
+  private customSystemPromptInput!: HTMLTextAreaElement;
 
   constructor(private readonly eventBus?: EventBus) {
     super('환경 설정', 480);
@@ -49,6 +54,12 @@ export class OptionsDialog extends ModalDialog {
     fileTab.dataset.tab = 'file';
     tabs.appendChild(fileTab);
 
+    const aiTab = document.createElement('button');
+    aiTab.className = 'dialog-tab';
+    aiTab.textContent = 'AI 조수';
+    aiTab.dataset.tab = 'ai';
+    tabs.appendChild(aiTab);
+
     body.appendChild(tabs);
 
     // 글꼴 탭 패널
@@ -61,6 +72,11 @@ export class OptionsDialog extends ModalDialog {
     filePanel.className = 'dialog-tab-panel opt-tab-panel';
     filePanel.dataset.tab = 'file';
     body.appendChild(filePanel);
+
+    const aiPanel = this.createAiPanel();
+    aiPanel.className = 'dialog-tab-panel opt-tab-panel';
+    aiPanel.dataset.tab = 'ai';
+    body.appendChild(aiPanel);
 
     // 탭 클릭 이벤트 (향후 탭 추가 대비)
     tabs.addEventListener('click', (e) => {
@@ -331,6 +347,124 @@ export class OptionsDialog extends ModalDialog {
     return panel;
   }
 
+  private createAiPanel(): HTMLElement {
+    const panel = document.createElement('div');
+    const ai = userSettings.getAi();
+
+    // ── 로컬 LLM 서버 설정 ──
+    const serverSection = document.createElement('div');
+    serverSection.className = 'dialog-section';
+
+    const serverTitle = document.createElement('div');
+    serverTitle.className = 'dialog-section-title';
+    serverTitle.textContent = '로컬 Ollama 연결 설정';
+    serverSection.appendChild(serverTitle);
+
+    // Ollama URL
+    const urlRow = document.createElement('div');
+    urlRow.className = 'dialog-row opt-row';
+    const urlLabel = document.createElement('label');
+    urlLabel.textContent = '서버 주소:';
+    urlLabel.style.minWidth = '90px';
+    this.ollamaUrlInput = document.createElement('input');
+    this.ollamaUrlInput.type = 'text';
+    this.ollamaUrlInput.value = ai.ollamaBaseUrl;
+    this.ollamaUrlInput.style.flex = '1';
+    this.ollamaUrlInput.style.padding = '4px 8px';
+    urlRow.append(urlLabel, this.ollamaUrlInput);
+    serverSection.appendChild(urlRow);
+
+    // 기본 모델명
+    const modelRow = document.createElement('div');
+    modelRow.className = 'dialog-row opt-row';
+    const modelLabel = document.createElement('label');
+    modelLabel.textContent = '기본 모델:';
+    modelLabel.style.minWidth = '90px';
+    this.ollamaModelInput = document.createElement('input');
+    this.ollamaModelInput.type = 'text';
+    this.ollamaModelInput.value = ai.defaultModel;
+    this.ollamaModelInput.style.flex = '1';
+    this.ollamaModelInput.style.padding = '4px 8px';
+    modelRow.append(modelLabel, this.ollamaModelInput);
+    serverSection.appendChild(modelRow);
+
+    panel.appendChild(serverSection);
+
+    // ── AI 생성 파라미터 ──
+    const paramSection = document.createElement('div');
+    paramSection.className = 'dialog-section';
+
+    const paramTitle = document.createElement('div');
+    paramTitle.className = 'dialog-section-title';
+    paramTitle.textContent = '생성 및 컨텍스트 파라미터';
+    paramSection.appendChild(paramTitle);
+
+    // 최대 컨텍스트 글자수
+    const ctxRow = document.createElement('div');
+    ctxRow.className = 'dialog-row opt-row';
+    const ctxLabel = document.createElement('label');
+    ctxLabel.textContent = '최대 컨텍스트:';
+    ctxLabel.style.minWidth = '90px';
+    this.contextMaxCharsInput = document.createElement('input');
+    this.contextMaxCharsInput.type = 'number';
+    this.contextMaxCharsInput.min = '1000';
+    this.contextMaxCharsInput.max = '50000';
+    this.contextMaxCharsInput.step = '1000';
+    this.contextMaxCharsInput.value = String(ai.contextMaxChars);
+    this.contextMaxCharsInput.style.width = '90px';
+    const ctxUnit = document.createElement('span');
+    ctxUnit.className = 'opt-count-label';
+    ctxUnit.textContent = '자';
+    ctxRow.append(ctxLabel, this.contextMaxCharsInput, ctxUnit);
+    paramSection.appendChild(ctxRow);
+
+    // Temperature
+    const tempRow = document.createElement('div');
+    tempRow.className = 'dialog-row opt-row';
+    const tempLabel = document.createElement('label');
+    tempLabel.textContent = 'Temperature:';
+    tempLabel.style.minWidth = '90px';
+    this.temperatureInput = document.createElement('input');
+    this.temperatureInput.type = 'number';
+    this.temperatureInput.min = '0.0';
+    this.temperatureInput.max = '1.5';
+    this.temperatureInput.step = '0.1';
+    this.temperatureInput.value = String(ai.temperature);
+    this.temperatureInput.style.width = '90px';
+    const tempUnit = document.createElement('span');
+    tempUnit.className = 'opt-count-label';
+    tempUnit.textContent = '(0.0: 정확, 1.0: 창의적)';
+    tempRow.append(tempLabel, this.temperatureInput, tempUnit);
+    paramSection.appendChild(tempRow);
+
+    panel.appendChild(paramSection);
+
+    // ── 커스텀 시스템 프롬프트 ──
+    const promptSection = document.createElement('div');
+    promptSection.className = 'dialog-section';
+
+    const promptTitle = document.createElement('div');
+    promptTitle.className = 'dialog-section-title';
+    promptTitle.textContent = '사용자 정의 시스템 지침 (선택)';
+    promptSection.appendChild(promptTitle);
+
+    this.customSystemPromptInput = document.createElement('textarea');
+    this.customSystemPromptInput.placeholder = 'AI에게 공통으로 부여할 기본 역할이나 어투 지침 (기본 공문서 지침에 추가됩니다)...';
+    this.customSystemPromptInput.value = ai.customSystemPrompt || '';
+    this.customSystemPromptInput.style.width = '100%';
+    this.customSystemPromptInput.style.height = '60px';
+    this.customSystemPromptInput.style.boxSizing = 'border-box';
+    this.customSystemPromptInput.style.padding = '6px 8px';
+    this.customSystemPromptInput.style.borderRadius = '4px';
+    this.customSystemPromptInput.style.border = '1px solid var(--border-color, #cbd5e1)';
+    this.customSystemPromptInput.style.resize = 'vertical';
+    promptSection.appendChild(this.customSystemPromptInput);
+
+    panel.appendChild(promptSection);
+
+    return panel;
+  }
+
   protected onConfirm(): void {
     const count = Math.min(5, Math.max(1, parseInt(this.recentCountInput.value) || 3));
     userSettings.updateFontSettings({
@@ -344,6 +478,18 @@ export class OptionsDialog extends ModalDialog {
       idleDelaySeconds: clampInteger(this.idleDelayInput.value, 10, 5, 600),
     });
     userSettings.setShowPdfPrintGuidance(this.pdfPrintGuidanceCheck.checked);
+
+    if (this.ollamaUrlInput && this.ollamaModelInput) {
+      userSettings.updateAiSettings({
+        ollamaBaseUrl: this.ollamaUrlInput.value.trim() || 'http://localhost:11434',
+        defaultModel: this.ollamaModelInput.value.trim() || 'gemma4:e2b',
+        contextMaxChars: clampInteger(this.contextMaxCharsInput.value, 8000, 1000, 50000),
+        temperature: Math.max(0, Math.min(1.5, parseFloat(this.temperatureInput.value) || 0.7)),
+        customSystemPrompt: this.customSystemPromptInput.value.trim(),
+      });
+      this.eventBus?.emit('ai-settings-changed', { source: 'options-dialog' });
+    }
+
     this.eventBus?.emit('autosave-settings-changed', { source: 'options-dialog' });
   }
 }

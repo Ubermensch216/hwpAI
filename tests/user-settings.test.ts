@@ -231,3 +231,60 @@ test('복구용 자동저장 설정은 rhwp-settings에 저장된다', () => {
     (globalThis as { localStorage?: Storage }).localStorage = originalStorage;
   }
 });
+
+test('AI Assister 설정은 rhwp-settings에 저장되고 업데이트된다', () => {
+  const originalStorage = (globalThis as { localStorage?: Storage }).localStorage;
+  const store = new Map<string, string>();
+  const mockStorage = {
+    get length() {
+      return store.size;
+    },
+    clear() {
+      store.clear();
+    },
+    getItem(key: string) {
+      return store.get(key) ?? null;
+    },
+    key(index: number) {
+      return Array.from(store.keys())[index] ?? null;
+    },
+    removeItem(key: string) {
+      store.delete(key);
+    },
+    setItem(key: string, value: string) {
+      store.set(key, value);
+    },
+  } as Storage;
+
+  (globalThis as { localStorage?: Storage }).localStorage = mockStorage;
+  try {
+    const defaultAi = userSettings.getAi();
+    assert.equal(defaultAi.ollamaBaseUrl, 'http://localhost:11434');
+    assert.equal(defaultAi.defaultModel, 'gemma4:e2b');
+    assert.equal(defaultAi.contextMaxChars, 8000);
+
+    userSettings.updateAiSettings({
+      defaultModel: 'llama3.2:latest',
+      contextMaxChars: 16000,
+      temperature: 0.5,
+    });
+
+    const updated = userSettings.getAi();
+    assert.equal(updated.defaultModel, 'llama3.2:latest');
+    assert.equal(updated.contextMaxChars, 16000);
+    assert.equal(updated.temperature, 0.5);
+
+    const stored = JSON.parse(store.get('rhwp-settings') ?? '{}');
+    assert.equal(stored.ai.defaultModel, 'llama3.2:latest');
+    assert.equal(stored.ai.contextMaxChars, 16000);
+    assert.equal(stored.ai.temperature, 0.5);
+  } finally {
+    userSettings.updateAiSettings({
+      defaultModel: 'gemma4:e2b',
+      contextMaxChars: 8000,
+      temperature: 0.7,
+    });
+    (globalThis as { localStorage?: Storage }).localStorage = originalStorage;
+  }
+});
+

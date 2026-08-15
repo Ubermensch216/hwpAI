@@ -154,3 +154,105 @@ export function getFullDocumentText(hwpCtrlOrWasm: any, maxChars: number = 8000)
     return '';
   }
 }
+
+/**
+ * 5. 맞춤법 교정 항목 구조
+ */
+export interface ProofreadItem {
+  id: string;
+  original: string;
+  corrected: string;
+  reason: string;
+}
+
+/**
+ * 6. LLM의 맞춤법 교정 응답 텍스트를 구조화된 항목 배열로 파싱한다.
+ */
+export function parseProofreadResponse(rawText: string): ProofreadItem[] {
+  if (!rawText) return [];
+  const lines = rawText.split('\n');
+  const items: ProofreadItem[] = [];
+  let itemCounter = 1;
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) continue;
+
+    // 패턴 1: 1. 원본 -> 수정 (사유) or - 원본 -> 수정 (사유)
+    const arrowMatch = line.match(/^(?:(?:\d+[\.\)]|\*|\-)\s*)?["'‘“]?(.*?)["'’”]?\s*(?:->|→|=>)\s*["'‘“]?(.*?)["'’”]?\s*(?:\((.*?)\)|사유[:：]\s*(.*?)|[:：]\s*(.*?))?$/);
+    if (arrowMatch && arrowMatch[1] && arrowMatch[2]) {
+      const orig = arrowMatch[1].replace(/^(?:원본[:：]?\s*)/, '').trim();
+      const corr = arrowMatch[2].replace(/^(?:수정|교정)[:：]?\s*/, '').trim();
+      const reason = (arrowMatch[3] || arrowMatch[4] || arrowMatch[5] || '맞춤법 및 문체 교정').trim();
+
+      if (orig && corr && orig !== corr) {
+        items.push({
+          id: `proofread_${itemCounter++}`,
+          original: orig,
+          corrected: corr,
+          reason,
+        });
+        continue;
+      }
+    }
+
+    // 패턴 2: 원본: ... / 교정: ... (사유)
+    const labelMatch = line.match(/원본[:：]\s*["'‘“]?(.*?)["'’”]?\s*[,/|]\s*(?:교정|수정)[:：]\s*["'‘“]?(.*?)["'’”]?\s*(?:\((.*?)\))?$/);
+    if (labelMatch && labelMatch[1] && labelMatch[2]) {
+      const orig = labelMatch[1].trim();
+      const corr = labelMatch[2].trim();
+      const reason = (labelMatch[3] || '맞춤법 및 문체 교정').trim();
+      if (orig && corr && orig !== corr) {
+        items.push({
+          id: `proofread_${itemCounter++}`,
+          original: orig,
+          corrected: corr,
+          reason,
+        });
+      }
+    }
+  }
+
+  return items;
+}
+
+/**
+ * 7. 문서 내에서 특정 텍스트(targetText)를 찾아 replacementText로 교체한다.
+ */
+export function replaceTextInHwp(hwpCtrlOrWasm: any, targetText: string, replacementText: string): boolean {
+  if (!hwpCtrlOrWasm || !targetText) return false;
+  const wasm = typeof hwpCtrlOrWasm.getWasmDoc === 'function' ? hwpCtrlOrWasm.getWasmDoc() : hwpCtrlOrWasm;
+  if (!wasm || typeof wasm.getDocumentInfo !== 'function') return false;
+
+  try {
+    const info = wasm.getDocumentInfo();
+    if (!info || typeof info.sectionCount !== 'number') return false;
+
+    const trimmedTarget = targetText.trim();
+    if (!trimmedTarget) return false;
+
+    for (let sec = 0; sec < info.sectionCount; sec++) {
+      const paraCount = wasm.getParagraphCount(sec);
+      for (let para = 0; para < paraCount; para++) {
+        const len = wasm.getParagraphLength(sec, para);
+        if (len <= 0) continue;
+        const pText = wasm.getTextRange(sec, para, 0, len);
+        if (!pText) continue;
+
+        const idx = pText.indexOf(trimmedTarget);
+        if (idx !== -1) {
+          wasm.deleteText(sec, para, idx, trimmedTarget.length);
+          wasm.insertText(sec, para, idx, replacementText);
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('rhwp-document-updated'));
+          }
+          return true;
+        }
+      }
+    }
+    return false;
+  } catch (err) {
+    console.error('[ai-formatter] replaceTextInHwp 실패:', err);
+    return false;
+  }
+}

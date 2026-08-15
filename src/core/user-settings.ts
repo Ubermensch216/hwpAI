@@ -66,6 +66,29 @@ export interface AutosaveSettings {
   idleDelaySeconds: number;
 }
 
+/** 프롬프트 템플릿 항목 */
+export interface PromptTemplate {
+  label: string;
+  icon: string;
+  prompt: string;
+}
+
+/** AI Assister 환경 설정 */
+export interface AiSettings {
+  /** Ollama 서버 주소 (기본: http://localhost:11434) */
+  ollamaBaseUrl: string;
+  /** 기본 LLM 모델명 (기본: gemma4:e2b) */
+  defaultModel: string;
+  /** 문서 컨텍스트 최대 문자수 (기본: 8000) */
+  contextMaxChars: number;
+  /** AI 응답 temperature (기본: 0.7) */
+  temperature: number;
+  /** 사용자 정의 시스템 프롬프트 (빈 문자열이면 기본 프롬프트 사용) */
+  customSystemPrompt: string;
+  /** 사용자 정의 프롬프트 템플릿 */
+  promptTemplates: PromptTemplate[];
+}
+
 /** 전체 설정 구조 */
 export interface AppSettings {
   version: number;
@@ -74,6 +97,7 @@ export interface AppSettings {
   dialog: DialogSettings;
   view: ViewSettings;
   autosave: AutosaveSettings;
+  ai: AiSettings;
 }
 
 /** 언어 인덱스 상수 (HWP 7개 언어) */
@@ -147,6 +171,23 @@ function defaultSettings(): AppSettings {
       idleSaveEnabled: true,
       idleDelaySeconds: 10,
     },
+    ai: {
+      ollamaBaseUrl: 'http://localhost:11434',
+      defaultModel: 'gemma4:e2b',
+      contextMaxChars: 8000,
+      temperature: 0.7,
+      customSystemPrompt: '',
+      promptTemplates: [
+        { label: '기안문 작성', icon: 'article', prompt: '행정 표준 기안문(추진목적, 주요내용, 세부계획, 기대효과) 작성: ' },
+        { label: '품의서 작성', icon: 'shopping_cart', prompt: '지출 품의서(목적, 소요예산표, 집행계획) 작성: ' },
+        { label: '개조식 정리', icon: 'format_list_bulleted', prompt: '보고서용 개조식(-함/-임 및 불렛포인트) 변환: ' },
+        { label: '공문서 격식체', icon: 'verified', prompt: '공문서 표준 격식체 변환: ' },
+        { label: '보고서 요약', icon: 'analytics', prompt: '의사결정권자 보고용 핵심 요약: ' },
+        { label: '주간업무보고', icon: 'event_note', prompt: '주간 업무 보고서(금주 실적, 차주 계획, 이슈) 작성: ' },
+        { label: '보도자료', icon: 'campaign', prompt: '배포용 공식 보도자료 작성: ' },
+        { label: '결론/시사점', icon: 'track_changes', prompt: '결론 및 향후 시사점 도출: ' },
+      ],
+    },
   };
 }
 
@@ -162,6 +203,10 @@ function normalizeNumber(value: unknown, fallback: number, min: number, max: num
   const number = typeof value === 'number' ? value : Number(value);
   if (!Number.isFinite(number)) return fallback;
   return Math.min(max, Math.max(min, Math.round(number)));
+}
+
+function normalizeString(value: unknown, fallback: string): string {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : fallback;
 }
 
 /** 사용자 환경설정 서비스 (싱글턴) */
@@ -182,6 +227,7 @@ class UserSettingsService {
       const dialog: Partial<DialogSettings> = parsed.dialog ?? {};
       const view: Partial<ViewSettings> = parsed.view ?? {};
       const autosave: Partial<AutosaveSettings> = parsed.autosave ?? {};
+      const ai: Partial<AiSettings> = parsed.ai ?? {};
       return {
         version: parsed.version ?? defaults.version,
         font: {
@@ -244,6 +290,20 @@ class UserSettingsService {
             5,
             600,
           ),
+        },
+        ai: {
+          ...defaults.ai,
+          ...ai,
+          ollamaBaseUrl: normalizeString(ai.ollamaBaseUrl, defaults.ai.ollamaBaseUrl),
+          defaultModel: normalizeString(ai.defaultModel, defaults.ai.defaultModel),
+          contextMaxChars: normalizeNumber(ai.contextMaxChars, defaults.ai.contextMaxChars, 1000, 100000),
+          temperature: typeof ai.temperature === 'number' && Number.isFinite(ai.temperature)
+            ? Math.max(0, Math.min(2, ai.temperature))
+            : defaults.ai.temperature,
+          customSystemPrompt: typeof ai.customSystemPrompt === 'string' ? ai.customSystemPrompt : defaults.ai.customSystemPrompt,
+          promptTemplates: Array.isArray(ai.promptTemplates) && ai.promptTemplates.length > 0
+            ? ai.promptTemplates
+            : defaults.ai.promptTemplates,
         },
       };
     } catch {
@@ -362,6 +422,38 @@ class UserSettingsService {
         5,
         600,
       ),
+    };
+    this.save();
+  }
+
+  /** AI Assister 설정 반환 */
+  getAi(): AiSettings {
+    return this.data.ai;
+  }
+
+  /** AI Assister 설정 업데이트 */
+  updateAiSettings(partial: Partial<AiSettings>): void {
+    this.data.ai = {
+      ...this.data.ai,
+      ...partial,
+      ollamaBaseUrl: partial.ollamaBaseUrl !== undefined
+        ? normalizeString(partial.ollamaBaseUrl, this.data.ai.ollamaBaseUrl)
+        : this.data.ai.ollamaBaseUrl,
+      defaultModel: partial.defaultModel !== undefined
+        ? normalizeString(partial.defaultModel, this.data.ai.defaultModel)
+        : this.data.ai.defaultModel,
+      contextMaxChars: partial.contextMaxChars !== undefined
+        ? normalizeNumber(partial.contextMaxChars, this.data.ai.contextMaxChars, 1000, 100000)
+        : this.data.ai.contextMaxChars,
+      temperature: typeof partial.temperature === 'number' && Number.isFinite(partial.temperature)
+        ? Math.max(0, Math.min(2, partial.temperature))
+        : this.data.ai.temperature,
+      customSystemPrompt: partial.customSystemPrompt !== undefined
+        ? partial.customSystemPrompt
+        : this.data.ai.customSystemPrompt,
+      promptTemplates: Array.isArray(partial.promptTemplates)
+        ? partial.promptTemplates
+        : this.data.ai.promptTemplates,
     };
     this.save();
   }

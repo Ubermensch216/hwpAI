@@ -1572,7 +1572,8 @@ function getHwpCtrl(): HwpCtrl | null {
 }
 
 function initAiAssister() {
-  const ollamaClient = new OllamaClient('http://localhost:11434', 'gemma4:e2b');
+  const aiSettings = userSettings.getAi();
+  const ollamaClient = new OllamaClient(aiSettings.ollamaBaseUrl, aiSettings.defaultModel);
   const getSelectedEditorText = () => inputHandler?.getSelectedText() ?? '';
   aiPanelInstance = new AiAssisterPanel(ollamaClient, getHwpCtrl, getSelectedEditorText);
   const mainWrap = document.getElementById('main-content-wrap');
@@ -1609,6 +1610,13 @@ function initAiAssister() {
   window.addEventListener('rhwp-document-updated', () => {
     eventBus.emit('document-changed');
     documentState.markDirty('ai-insert');
+  });
+
+  eventBus.on('ai-settings-changed', () => {
+    const aiConfig = userSettings.getAi();
+    ollamaClient.setBaseUrl(aiConfig.ollamaBaseUrl);
+    ollamaClient.setModel(aiConfig.defaultModel);
+    aiPanelInstance?.checkHealth();
   });
 
   /**
