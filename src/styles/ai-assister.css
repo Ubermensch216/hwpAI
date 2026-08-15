@@ -885,18 +885,78 @@
   border-radius: 8px;
 }
 
-/* 탭 2, 3, 4 결과 박스 영역 수직 반응형 확장 */
+/* 탭 2, 3, 4 안내 헤더 & 버튼 영역 (일관된 행간 및 여백) */
 .ai-tab-header {
   flex-shrink: 0;
-  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 14px;
+  background: var(--bg-secondary, #f8fafc);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 8px;
+  padding: 14px;
 }
 
+.ai-tab-header p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-secondary, #475569);
+}
+
+.ai-tab-header .ai-btn-primary {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 6px;
+  box-sizing: border-box;
+}
+
+/* 탭 2, 3, 4 결과 박스 영역 수직 반응형 확장 */
 .ai-analysis-result,
 .ai-fields-list,
 .ai-proofread-results {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.ai-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 13px;
+  line-height: 1.6;
+  padding: 28px 16px;
+  border: 1px dashed var(--border-color, #cbd5e1);
+  border-radius: 8px;
+  background: #fafbfc;
+  margin: 0;
+}
+
+:root[data-theme-effective="dark"] .ai-tab-header {
+  background: #1e232a;
+  border-color: #333a46;
+}
+
+:root[data-theme-effective="dark"] .ai-tab-header p {
+  color: #94a3b8;
+}
+
+:root[data-theme-effective="dark"] .ai-placeholder {
+  background: #181b20;
+  border-color: #333a46;
+  color: #64748b;
 }
 
 /* ── 맞춤법 인터랙티브 교정 카드 ── */
