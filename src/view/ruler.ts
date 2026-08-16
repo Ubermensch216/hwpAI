@@ -126,9 +126,10 @@ export class Ruler {
 
   /** 페이지 좌측 화면 좌표를 계산한다 (scroll-container 뷰포트 기준). */
   private getPageScreenLeft(scrollX: number): number {
+    const layoutWidth = Math.max(this.container.clientWidth, this.virtualScroll.getTotalWidth());
     return this.virtualScroll.getPageLeftResolved(
       0,
-      this.virtualScroll.getTotalWidth(),
+      layoutWidth,
     ) - scrollX;
   }
 

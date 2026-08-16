@@ -117,9 +117,11 @@ export default defineConfig({
             action: './',
             accept: {
               'application/x-hwp': ['.hwp'],
+              'application/haansofthwp': ['.hwp'],
+              'application/vnd.hancom.hwp': ['.hwp'],
               'application/hwp+zip': ['.hwpx'],
-              'application/xml': ['.hml'],
-              'text/xml': ['.hml'],
+              'application/vnd.hancom.hwpx': ['.hwpx'],
+              'application/vnd.hancom.hml': ['.hml'],
             },
           },
         ],

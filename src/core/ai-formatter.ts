@@ -3,6 +3,28 @@
  */
 
 /**
+ * 인라인 마크다운 (볼드, 이탤릭, 인라인 코드, 링크, 취소선 등)을 HTML로 변환
+ */
+function formatInlineMarkdown(text: string): string {
+  let res = text;
+  // 볼드 + 이탤릭 (***텍스트*** or ___텍스트___)
+  res = res.replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>');
+  // 볼드 (**텍스트** or __텍스트__)
+  res = res.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  res = res.replace(/__(.*?)__/g, '<strong>$1</strong>');
+  // 이탤릭 (*텍스트* or _텍스트_)
+  res = res.replace(/(?<!\*)\*(?!\*)(.*?)(?<!\*)\*(?!\*)/g, '<em>$1</em>');
+  res = res.replace(/(?<!_)_(?!_)(.*?)(?<!_)_(?!_)/g, '<em>$1</em>');
+  // 취소선 (~~텍스트~~)
+  res = res.replace(/~~(.*?)~~/g, '<del>$1</del>');
+  // 인라인 코드 (`코드`)
+  res = res.replace(/`([^`]+)`/g, '<code class="ai-inline-code">$1</code>');
+  // 링크 ([텍스트](url))
+  res = res.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="ai-link">$1</a>');
+  return res;
+}
+
+/**
  * 1. 마크다운 특수문자를 제거하고 일반 한글 문서에 어울리는 깔끔한 텍스트로 정제한다.
  */
 export function formatMarkdownToHwpText(markdownText: string): string {
@@ -17,10 +39,12 @@ export function formatMarkdownToHwpText(markdownText: string): string {
   text = text.replace(/^#{1,6}\s*(.+)$/gm, '$1');
 
   // 볼드/이탤릭 (**텍스트**, *텍스트*, __텍스트__) -> 텍스트
+  text = text.replace(/\*\*\*(.*?)\*\*\*/g, '$1');
   text = text.replace(/\*\*(.*?)\*\*/g, '$1');
   text = text.replace(/\*(.*?)\*/g, '$1');
   text = text.replace(/__(.*?)__/g, '$1');
   text = text.replace(/_(.*?)_/g, '$1');
+  text = text.replace(/~~(.*?)~~/g, '$1');
 
   // 인라인 코드 (`코드` -> 코드)
   text = text.replace(/`(.*?)`/g, '$1');
@@ -41,41 +65,217 @@ export function formatMarkdownToHwpText(markdownText: string): string {
 }
 
 /**
+ * 마크다운 표 블록 라인들을 HTML <table> 요소로 변환한다.
+ */
+function renderMarkdownTableBlock(tableLines: string[]): string {
+  if (tableLines.length < 2) return tableLines.join('\n');
+
+  const parseRow = (line: string) => {
+    let raw = line.trim();
+    if (raw.startsWith('|')) raw = raw.slice(1);
+    if (raw.endsWith('|')) raw = raw.slice(0, -1);
+    return raw.split('|').map(c => c.trim());
+  };
+
+  const headerCells = parseRow(tableLines[0]);
+  let alignments: ('left' | 'center' | 'right' | '')[] = [];
+  let bodyStartIndex = 1;
+
+  // 구분선 행 (|:---|:---:|---:|) 감지
+  if (tableLines.length > 1 && /^\|?[\s\-:|]+\|?$/.test(tableLines[1].trim())) {
+    const sepCells = parseRow(tableLines[1]);
+    alignments = sepCells.map(cell => {
+      const trimmed = cell.trim();
+      const leftColon = trimmed.startsWith(':');
+      const rightColon = trimmed.endsWith(':');
+      if (leftColon && rightColon) return 'center';
+      if (rightColon) return 'right';
+      if (leftColon) return 'left';
+      return '';
+    });
+    bodyStartIndex = 2;
+  }
+
+  const colCount = headerCells.length;
+  if (colCount === 0) return tableLines.join('\n');
+
+  let html = '<div class="ai-table-wrap"><table class="ai-table"><thead><tr>';
+  headerCells.forEach((h, idx) => {
+    const align = alignments[idx] ? ` style="text-align:${alignments[idx]};"` : '';
+    html += `<th${align}>${formatInlineMarkdown(h)}</th>`;
+  });
+  html += '</tr></thead><tbody>';
+
+  for (let i = bodyStartIndex; i < tableLines.length; i++) {
+    const line = tableLines[i].trim();
+    if (!line) continue;
+    // 혹시 중간에 구분선이 또 나오면 건너뛰기
+    if (/^\|?[\s\-:|]+\|?$/.test(line)) continue;
+
+    const rowCells = parseRow(line);
+    while (rowCells.length < colCount) rowCells.push('');
+
+    html += '<tr>';
+    for (let c = 0; c < colCount; c++) {
+      const align = alignments[c] ? ` style="text-align:${alignments[c]};"` : '';
+      const cellContent = formatInlineMarkdown(rowCells[c] || '');
+      html += `<td${align}>${cellContent || '&nbsp;'}</td>`;
+    }
+    html += '</tr>';
+  }
+
+  html += '</tbody></table></div>';
+  return html;
+}
+
+/**
  * 2. AI 대화 창(Chat UI)에서 읽기 쉽도록 마크다운을 깔끔한 HTML 스타일로 변환한다.
+ * - 불필요한 빈 행/과도한 행간 공백 제거
+ * - 마크다운 표(|...|)를 정교한 HTML 일반 테이블로 변환
+ * - 코드블록, 헤더, 순서형/비순서형 목록, 인용문, 인라인 서식 지원
  */
 export function formatMarkdownToHtml(markdownText: string): string {
   if (!markdownText) return '';
 
-  let html = markdownText
+  // 1. HTML 특수문자 이스케이프 (코드 블록/인라인 코드 등 안전 보장)
+  let text = markdownText
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
 
-  // 코드 블록
-  html = html.replace(/```([\s\S]*?)```/g, '<pre class="ai-code-block"><code>$1</code></pre>');
+  // 2. 코드 블록 보호 (``` ... ```)
+  const codeBlocks: string[] = [];
+  text = text.replace(/```([a-zA-Z0-9_\-]*)?\n?([\s\S]*?)```/g, (_match, lang, code) => {
+    const langClass = lang ? ` class="language-${lang.trim()}"` : '';
+    const index = codeBlocks.length;
+    codeBlocks.push(
+      `<div class="ai-code-block-wrap"><div class="ai-code-header">${lang ? `<span>${lang}</span>` : ''}</div><pre class="ai-code-block"><code${langClass}>${code.trim()}</code></pre></div>`
+    );
+    return `@@CODE_BLOCK_${index}@@`;
+  });
 
-  // 헤더 (# 제목)
-  html = html.replace(/^### (.*$)/gim, '<h4 class="ai-h4">$1</h4>');
-  html = html.replace(/^## (.*$)/gim, '<h3 class="ai-h3">$1</h3>');
-  html = html.replace(/^# (.*$)/gim, '<h2 class="ai-h2">$1</h2>');
+  // 3. 줄 단위 블록 파싱 (테이블, 목록, 헤더, 인용문, 일반 문단)
+  const rawLines = text.split('\n');
+  const blocks: string[] = [];
+  let i = 0;
 
-  // 볼드 (**텍스트**)
-  html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  while (i < rawLines.length) {
+    const line = rawLines[i];
+    const trimmed = line.trim();
 
-  // 인라인 코드 (`코드`)
-  html = html.replace(/`(.*?)`/g, '<code class="ai-inline-code">$1</code>');
+    // 코드 블록 플레이스홀더 단독 라인인 경우
+    if (trimmed.startsWith('@@CODE_BLOCK_') && trimmed.endsWith('@@')) {
+      blocks.push(trimmed);
+      i++;
+      continue;
+    }
 
-  // 리스트 항목 (- 또는 * )
-  html = html.replace(/^[\*\-]\s+(.*$)/gim, '<li class="ai-list-item">$1</li>');
-  html = html.replace(/(<li class="ai-list-item">.*<\/li>\n?)+/g, '<ul class="ai-list">$&</ul>');
+    // 빈 줄 건너뛰기
+    if (!trimmed) {
+      i++;
+      continue;
+    }
 
-  // 줄바꿈 처리 (\n -> <br/>)
-  html = html.replace(/\n/g, '<br/>');
+    // A. 마크다운 테이블 감지 (최소 | 로 시작하거나 | 로 끝나는 형태)
+    if (trimmed.startsWith('|') && trimmed.includes('|', 1)) {
+      const tableLines: string[] = [];
+      while (i < rawLines.length && rawLines[i].trim().startsWith('|')) {
+        tableLines.push(rawLines[i].trim());
+        i++;
+      }
+      blocks.push(renderMarkdownTableBlock(tableLines));
+      continue;
+    }
 
-  // 연속 <br/> 정리
-  html = html.replace(/(<br\/>){3,}/g, '<br/><br/>');
+    // B. 헤더 (# 제목, ## 제목, ### 제목)
+    const headerMatch = trimmed.match(/^(#{1,6})\s+(.*)$/);
+    if (headerMatch) {
+      const level = headerMatch[1].length;
+      const content = formatInlineMarkdown(headerMatch[2]);
+      if (level === 1) {
+        blocks.push(`<h2 class="ai-h2">${content}</h2>`);
+      } else if (level === 2) {
+        blocks.push(`<h3 class="ai-h3">${content}</h3>`);
+      } else {
+        blocks.push(`<h4 class="ai-h4">${content}</h4>`);
+      }
+      i++;
+      continue;
+    }
 
-  return html;
+    // C. 비순서형 목록 (- 항목, * 항목)
+    if (/^[\*\-]\s+/.test(trimmed)) {
+      const listItems: string[] = [];
+      while (i < rawLines.length && /^[\*\-]\s+/.test(rawLines[i].trim())) {
+        const itemText = rawLines[i].trim().replace(/^[\*\-]\s+/, '');
+        listItems.push(`<li class="ai-list-item">${formatInlineMarkdown(itemText)}</li>`);
+        i++;
+      }
+      blocks.push(`<ul class="ai-list">${listItems.join('')}</ul>`);
+      continue;
+    }
+
+    // D. 순서형 목록 (1. 항목, 2. 항목)
+    if (/^\d+[\.\)]\s+/.test(trimmed)) {
+      const listItems: string[] = [];
+      while (i < rawLines.length && /^\d+[\.\)]\s+/.test(rawLines[i].trim())) {
+        const itemText = rawLines[i].trim().replace(/^\d+[\.\)]\s+/, '');
+        listItems.push(`<li class="ai-list-item">${formatInlineMarkdown(itemText)}</li>`);
+        i++;
+      }
+      blocks.push(`<ol class="ai-list ai-list-ordered">${listItems.join('')}</ol>`);
+      continue;
+    }
+
+    // E. 인용구 (> 문장)
+    if (trimmed.startsWith('&gt;') || trimmed.startsWith('>')) {
+      const quoteLines: string[] = [];
+      while (i < rawLines.length && (rawLines[i].trim().startsWith('&gt;') || rawLines[i].trim().startsWith('>'))) {
+        const qLine = rawLines[i].trim().replace(/^(&gt;|>)\s*/, '');
+        quoteLines.push(formatInlineMarkdown(qLine));
+        i++;
+      }
+      blocks.push(`<blockquote class="ai-blockquote">${quoteLines.join('<br/>')}</blockquote>`);
+      continue;
+    }
+
+    // F. 수평선 (---, ***, ___)
+    if (/^(\-{3,}|\*{3,}|_{3,})$/.test(trimmed)) {
+      blocks.push('<hr class="ai-hr"/>');
+      i++;
+      continue;
+    }
+
+    // G. 일반 문단: 연속된 텍스트 라인을 하나의 깔끔한 문단으로 묶음
+    const paraLines: string[] = [];
+    while (
+      i < rawLines.length &&
+      rawLines[i].trim() &&
+      !rawLines[i].trim().startsWith('|') &&
+      !/^#{1,6}\s+/.test(rawLines[i].trim()) &&
+      !/^[\*\-]\s+/.test(rawLines[i].trim()) &&
+      !/^\d+[\.\)]\s+/.test(rawLines[i].trim()) &&
+      !rawLines[i].trim().startsWith('&gt;') &&
+      !rawLines[i].trim().startsWith('>') &&
+      !/^(\-{3,}|\*{3,}|_{3,})$/.test(rawLines[i].trim()) &&
+      !rawLines[i].trim().startsWith('@@CODE_BLOCK_')
+    ) {
+      paraLines.push(formatInlineMarkdown(rawLines[i].trim()));
+      i++;
+    }
+
+    if (paraLines.length > 0) {
+      blocks.push(`<p class="ai-p">${paraLines.join('<br/>')}</p>`);
+    }
+  }
+
+  // 4. 블록 결합 및 코드 블록 복원
+  let finalHtml = blocks.join('\n');
+  codeBlocks.forEach((codeHtml, idx) => {
+    finalHtml = finalHtml.replace(`@@CODE_BLOCK_${idx}@@`, codeHtml);
+  });
+
+  return finalHtml;
 }
 
 /**

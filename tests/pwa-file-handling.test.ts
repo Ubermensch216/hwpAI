@@ -10,12 +10,22 @@ import {
   type PwaFileHandlingCallbacks,
 } from '../src/command/pwa-file-handling.ts';
 
-function createHandle(name: string, fileContent = 'fixture') {
+// HWP5 CFB 매직 바이트
+const HWP_CFB_MAGIC = new Uint8Array([0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]);
+// HWPX ZIP 매직 바이트
+const ZIP_MAGIC = new Uint8Array([0x50, 0x4B, 0x03, 0x04]);
+// HML(HWPML) XML 프리픽스
+const HML_XML = '<?xml version="1.0" encoding="UTF-8"?><HWPML Version="2.9" SubVersion="0.0.0" Style="embed">';
+
+function createHandle(name: string, fileContent: string | Uint8Array = HWP_CFB_MAGIC) {
   return {
     kind: 'file' as const,
     name,
     async getFile() {
-      return new File([fileContent], name, { type: 'application/x-hwp' });
+      const blobParts: BlobPart[] = typeof fileContent === 'string'
+        ? [fileContent]
+        : [fileContent];
+      return new File(blobParts, name, { type: 'application/x-hwp' });
     },
     async createWritable() {
       throw new Error('write should not be called while opening PWA launch files');
@@ -92,9 +102,9 @@ test('handlePwaLaunchFiles는 미지원 확장자를 로드하지 않는다', as
   assert.equal(errors.length, 0);
 });
 
-test('handlePwaLaunchFiles는 HWP 파일 handle을 open-document-bytes payload로 만든다', async () => {
+test('handlePwaLaunchFiles는 HWP(CFB) 파일을 open-document-bytes payload로 만든다', async () => {
   const { callbacks, opened, unsupported, errors } = createCallbacks();
-  const handle = createHandle('opened.hwp', 'abc');
+  const handle = createHandle('opened.hwp', HWP_CFB_MAGIC);
 
   await handlePwaLaunchFiles({ files: [handle] }, callbacks);
 
@@ -104,13 +114,13 @@ test('handlePwaLaunchFiles는 HWP 파일 handle을 open-document-bytes payload�
   assert.equal(opened[0].fileName, 'opened.hwp');
   assert.equal(opened[0].fileHandle, handle);
   assert.equal(opened[0].skipUnsavedGuard, false);
-  assert.deepEqual(Array.from(opened[0].bytes), [97, 98, 99]);
+  assert.deepEqual(Array.from(opened[0].bytes), Array.from(HWP_CFB_MAGIC));
 });
 
-test('handlePwaLaunchFiles는 HWPX 파일도 허용하고 다중 파일은 첫 파일만 연다', async () => {
+test('handlePwaLaunchFiles는 HWPX(ZIP) 파일도 허용하고 다중 파일은 첫 파일만 연다', async () => {
   const { callbacks, opened, unsupported, multiple } = createCallbacks();
-  const first = createHandle('first.hwpx', 'one');
-  const second = createHandle('second.hwp', 'two');
+  const first = createHandle('first.hwpx', ZIP_MAGIC);
+  const second = createHandle('second.hwp', HWP_CFB_MAGIC);
 
   await handlePwaLaunchFiles({ files: [first, second] }, callbacks);
 
@@ -123,7 +133,7 @@ test('handlePwaLaunchFiles는 HWPX 파일도 허용하고 다중 파일은 첫 �
 
 test('handlePwaLaunchFiles는 HML 파일도 연다', async () => {
   const { callbacks, opened, unsupported, errors } = createCallbacks();
-  const handle = createHandle('opened.hml', '<?xml version="1.0"?><HWPML />');
+  const handle = createHandle('opened.hml', HML_XML);
 
   await handlePwaLaunchFiles({ files: [handle] }, callbacks);
 
@@ -132,6 +142,41 @@ test('handlePwaLaunchFiles는 HML 파일도 연다', async () => {
   assert.equal(opened.length, 1);
   assert.equal(opened[0].fileName, 'opened.hml');
   assert.equal(opened[0].fileHandle, handle);
+});
+
+test('handlePwaLaunchFiles는 0바이트 빈 파일을 거부하고 notifyError를 발생시킨다', async () => {
+  const { callbacks, opened, unsupported, errors } = createCallbacks();
+  const handle = createHandle('empty.hwp', '');
+
+  await handlePwaLaunchFiles({ files: [handle] }, callbacks);
+
+  assert.equal(opened.length, 0);
+  assert.equal(unsupported.length, 0);
+  assert.equal(errors.length, 1);
+  assert.match((errors[0] as Error).message, /빈 파일\(0바이트\)은 열 수 없습니다/);
+});
+
+test('handlePwaLaunchFiles는 확장자는 .hwp 이지만 내용이 HWP가 아닌 파일을 거부한다', async () => {
+  const { callbacks, opened, unsupported, errors } = createCallbacks();
+  // 확장자는 .hwp 이지만 내용은 평문 텍스트
+  const handle = createHandle('fake.hwp', 'this is just plain text, not a real HWP file');
+
+  await handlePwaLaunchFiles({ files: [handle] }, callbacks);
+
+  assert.equal(opened.length, 0, '파일이 열려서는 안 된다');
+  assert.deepEqual(unsupported, ['fake.hwp'], 'notifyUnsupportedFile이 호출되어야 한다');
+  assert.equal(errors.length, 0);
+});
+
+test('handlePwaLaunchFiles는 확장자는 .hwpx 이지만 내용이 ZIP이 아닌 파일을 거부한다', async () => {
+  const { callbacks, opened, unsupported, errors } = createCallbacks();
+  const handle = createHandle('fake.hwpx', '<html><body>not a HWPX</body></html>');
+
+  await handlePwaLaunchFiles({ files: [handle] }, callbacks);
+
+  assert.equal(opened.length, 0);
+  assert.deepEqual(unsupported, ['fake.hwpx']);
+  assert.equal(errors.length, 0);
 });
 
 test('handlePwaLaunchFiles는 getFile 실패를 notifyError로 전달한다', async () => {

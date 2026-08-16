@@ -518,8 +518,16 @@ export class AiAssisterPanel {
           temperature: aiConfig.temperature,
           onToken: (_chunk, full) => {
             generatedText = full;
+            // 사용자가 위로 스크롤하여 이전 내용을 보고 있는 중인지 확인 (바닥에서 48px 초과 여부)
+            const isNearBottom =
+              chatHistoryEl.scrollHeight - chatHistoryEl.scrollTop - chatHistoryEl.clientHeight < 48;
+
             bodyEl.innerHTML = formatMarkdownToHtml(full);
-            chatHistoryEl.scrollTop = chatHistoryEl.scrollHeight;
+
+            // 사용자가 바닥에 머물러 있을 때만 최신 응답 위치로 자동 스크롤
+            if (isNearBottom) {
+              chatHistoryEl.scrollTop = chatHistoryEl.scrollHeight;
+            }
           },
           onDone: (full, metrics) => {
             aiResponseCache.set(cacheKey, full, metrics);

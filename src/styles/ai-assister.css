@@ -306,39 +306,161 @@
   color: #1e293b;
 }
 
+.ai-p {
+  margin: 0 0 8px 0;
+  line-height: 1.6;
+}
+
+.ai-p:last-child {
+  margin-bottom: 0;
+}
+
 .ai-h2, .ai-h3, .ai-h4 {
-  margin: 10px 0 6px 0;
+  margin: 12px 0 4px 0;
   font-weight: 700;
   color: #1e293b;
+}
+.ai-h2:first-child, .ai-h3:first-child, .ai-h4:first-child {
+  margin-top: 0;
 }
 .ai-h2 { font-size: 15px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; }
 .ai-h3 { font-size: 14px; }
 .ai-h4 { font-size: 13px; color: #3572e3; }
 
 .ai-list {
-  margin: 6px 0;
+  margin: 4px 0 8px 0;
   padding-left: 18px;
 }
 
+.ai-list-ordered {
+  padding-left: 20px;
+}
+
+.ai-list:last-child {
+  margin-bottom: 0;
+}
+
 .ai-list-item {
-  margin-bottom: 4px;
+  margin-bottom: 3px;
+  line-height: 1.5;
+}
+
+.ai-list-item:last-child {
+  margin-bottom: 0;
+}
+
+/* ── 일반 테이블 (Table) 가독성 렌더링 ── */
+.ai-table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 8px 0 10px 0;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.ai-table-wrap:last-child {
+  margin-bottom: 0;
+}
+
+.ai-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: left;
+}
+
+.ai-table th {
+  background: #f1f5f9;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-bottom: 2px solid #cbd5e1;
+  border-right: 1px solid #e2e8f0;
+  color: #1e293b;
+  white-space: nowrap;
+}
+
+.ai-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid #e2e8f0;
+  border-right: 1px solid #e2e8f0;
+  color: #334155;
+}
+
+.ai-table tr:last-child td {
+  border-bottom: none;
+}
+
+.ai-table th:last-child,
+.ai-table td:last-child {
+  border-right: none;
+}
+
+.ai-table tbody tr:nth-child(even) td {
+  background: #f8fafc;
+}
+
+.ai-table tbody tr:hover td {
+  background: #eff6ff;
+}
+
+/* ── 인용문 & 수평선 ── */
+.ai-blockquote {
+  margin: 6px 0 8px 0;
+  padding: 6px 12px;
+  border-left: 3px solid #3572e3;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 12.5px;
+  border-radius: 0 4px 4px 0;
+  line-height: 1.55;
+}
+
+.ai-hr {
+  border: none;
+  border-top: 1px solid #e2e8f0;
+  margin: 10px 0;
+}
+
+.ai-link {
+  color: #3572e3;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.ai-code-block-wrap {
+  margin: 8px 0;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.ai-code-header {
+  background: #0f172a;
+  color: #94a3b8;
+  font-size: 10px;
+  padding: 2px 8px;
+  font-family: monospace;
+  text-transform: uppercase;
 }
 
 .ai-code-block {
   background: #1e293b;
   color: #f8fafc;
   padding: 8px 12px;
-  border-radius: 6px;
+  border-radius: 0 0 6px 6px;
   font-family: monospace;
   font-size: 12px;
   overflow-x: auto;
-  margin: 8px 0;
+  margin: 0;
 }
 
 .ai-inline-code {
   background: #e2e8f0;
   color: #0f172a;
-  padding: 2px 5px;
+  padding: 1px 5px;
   border-radius: 4px;
   font-family: monospace;
   font-size: 12px;
@@ -775,6 +897,50 @@
 
 :root[data-theme-effective="dark"] .ai-list-item {
   color: #e2e8f0;
+}
+
+:root[data-theme-effective="dark"] .ai-p {
+  color: #f8fafc;
+}
+
+:root[data-theme-effective="dark"] .ai-table-wrap {
+  background: #1e232a;
+  border-color: #333a46;
+}
+
+:root[data-theme-effective="dark"] .ai-table th {
+  background: #252a32;
+  border-bottom-color: #3b4252;
+  border-right-color: #333a46;
+  color: #f8fafc;
+}
+
+:root[data-theme-effective="dark"] .ai-table td {
+  border-bottom-color: #2d333e;
+  border-right-color: #2d333e;
+  color: #cbd5e1;
+}
+
+:root[data-theme-effective="dark"] .ai-table tbody tr:nth-child(even) td {
+  background: #21262f;
+}
+
+:root[data-theme-effective="dark"] .ai-table tbody tr:hover td {
+  background: #2d3544;
+}
+
+:root[data-theme-effective="dark"] .ai-blockquote {
+  background: #181b20;
+  border-left-color: #60a5fa;
+  color: #94a3b8;
+}
+
+:root[data-theme-effective="dark"] .ai-hr {
+  border-top-color: #333a46;
+}
+
+:root[data-theme-effective="dark"] .ai-link {
+  color: #60a5fa;
 }
 
 :root[data-theme-effective="dark"] .ai-inline-code {
