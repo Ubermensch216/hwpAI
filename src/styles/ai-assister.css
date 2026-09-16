@@ -621,10 +621,16 @@
   border-radius: 6px;
   border: 1px solid #cbd5e1;
   background: #ffffff;
+  color: #334155;
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s ease;
+}
+
+.ai-btn:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
 }
 
 .ai-btn-sm {
@@ -681,7 +687,13 @@
   padding: 4px 8px;
   border: 1px solid #cbd5e1;
   border-radius: 4px;
+  background: #ffffff;
+  color: #1e293b;
   font-size: 12px;
+}
+
+.ai-inline-input::placeholder {
+  color: #94a3b8;
 }
 
 /* Diff Modal */
@@ -706,6 +718,7 @@
   width: 720px;
   max-width: 90vw;
   background: #ffffff;
+  color: #1e293b;
   border-radius: 12px;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
   display: flex;
@@ -762,6 +775,7 @@
   padding: 12px;
   border: 1px solid #e2e8f0;
   border-radius: 6px;
+  color: #1e293b;
   font-size: 13px;
   line-height: 1.6;
   white-space: pre-wrap;
@@ -770,11 +784,13 @@
 .ai-text-box.original-text {
   background: #fff1f2;
   border-color: #fecdd3;
+  color: #881337;
 }
 
 .ai-text-box.generated-text {
   background: #f0fdf4;
   border-color: #bbf7d0;
+  color: #14532d;
 }
 
 .ai-diff-footer {
@@ -993,6 +1009,30 @@
   color: #a9b4c4;
 }
 
+:root[data-theme-effective="dark"] .ai-btn {
+  background: #2b313d;
+  color: #e2e8f0;
+  border-color: #434c5e;
+}
+
+:root[data-theme-effective="dark"] .ai-btn:hover {
+  background: #353c4a;
+  color: #f8fafc;
+  border-color: #5a6478;
+}
+
+:root[data-theme-effective="dark"] .ai-btn-primary {
+  background: #3572e3;
+  color: #ffffff;
+  border-color: #3572e3;
+}
+
+:root[data-theme-effective="dark"] .ai-btn-primary:hover {
+  background: #2b5cc2;
+  color: #ffffff;
+  border-color: #2b5cc2;
+}
+
 :root[data-theme-effective="dark"] .ai-btn-secondary {
   background: #2b313d;
   color: #e2e8f0;
@@ -1011,6 +1051,10 @@
   border-color: #434c5e;
 }
 
+:root[data-theme-effective="dark"] .ai-inline-input::placeholder {
+  color: #7c8799;
+}
+
 :root[data-theme-effective="dark"] .ai-diff-modal-content {
   background: #1e232a;
   color: #f8fafc;
@@ -1023,6 +1067,19 @@
 
 :root[data-theme-effective="dark"] .ai-diff-header h3 {
   color: #f8fafc;
+}
+
+:root[data-theme-effective="dark"] .ai-close-btn {
+  color: #a9b4c4;
+}
+
+:root[data-theme-effective="dark"] .ai-diff-col label {
+  color: #cbd5e1;
+}
+
+:root[data-theme-effective="dark"] .ai-text-box {
+  border-color: #333a46;
+  color: #e2e8f0;
 }
 
 :root[data-theme-effective="dark"] .ai-diff-footer {
