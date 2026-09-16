@@ -11,8 +11,17 @@ appDir = fso.GetParentFolderName(WScript.ScriptFullName)
 WshShell.CurrentDirectory = appDir
 
 If Not fso.FileExists(fso.BuildPath(appDir, "dist\index.html")) Then
-    ' 최초 실행: 정적 파일이 없으면 빌드부터 (완료까지 대기)
+    ' 최초 실행: 의존성이 없으면 설치, 정적 파일이 없으면 빌드부터 (완료까지 대기)
+    If Not fso.FolderExists(fso.BuildPath(appDir, "node_modules")) Then
+        WshShell.Run "cmd /c npm install", 0, True
+    End If
     WshShell.Run "cmd /c npm run build", 0, True
+End If
+
+' 빌드 결과물이 없으면 서버가 dist\index.html 을 읽지 못해 "500 Internal Server Error: ENOENT" 가 뜬다.
+If Not fso.FileExists(fso.BuildPath(appDir, "dist\index.html")) Then
+    MsgBox "Build failed (dist\index.html not found)." & vbCrLf & "Run npm install and npm run build in a command prompt.", vbCritical, "hwp+AI Editor"
+    WScript.Quit 1
 End If
 
 If fso.FileExists(fso.BuildPath(appDir, "server-port.txt")) Then
